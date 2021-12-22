@@ -14,13 +14,13 @@
 from libc.stdint cimport int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t
 
 cdef extern from "ethercat.h":
-    
+
     DEF EC_MAXBUF = 16
-    
+
     ec_adaptert* ec_find_adapters()
-        
+
     # from osal.h
-    
+
     ctypedef int8_t              boolean
     ctypedef int8_t              int8
     ctypedef int16_t             int16
@@ -32,15 +32,15 @@ cdef extern from "ethercat.h":
     ctypedef uint64_t            uint64
     ctypedef float               float32
     ctypedef double              float64
-    
+
     ctypedef struct ec_timet:
         uint32 sec
         uint32 usec
-    
+
     # from ethercattype.h
-    
+
     DEF EC_TIMEOUTRET = 2000
-    
+
     ctypedef enum ec_err_type:
         EC_ERR_TYPE_SDO_ERROR         = 0
         EC_ERR_TYPE_EMERGENCY         = 1
@@ -52,7 +52,7 @@ cdef extern from "ethercat.h":
         EC_ERR_TYPE_SOE_ERROR         = 8
         EC_ERR_TYPE_MBX_ERROR         = 9
         EC_ERR_TYPE_FOE_FILE_NOTFOUND = 10
-        
+
     ctypedef enum ec_state:
         EC_STATE_NONE           = 0x00
         EC_STATE_INIT           = 0x01
@@ -62,7 +62,7 @@ cdef extern from "ethercat.h":
         EC_STATE_OPERATIONAL    = 0x08
         EC_STATE_ACK            = 0x10
         EC_STATE_ERROR          = 0x10
-   
+
     ctypedef struct ec_errort:
         ec_timet Time
         boolean     Signal
@@ -72,25 +72,25 @@ cdef extern from "ethercat.h":
         ec_err_type Etype
         int32   AbortCode
         uint16  ErrorCode
-    
+
     # from nicdrv.h
-        
+
     ctypedef struct ec_stackT:
         pass
-        
+
     ctypedef struct ecx_redportt:
         pass
-        
+
     ctypedef struct ecx_portt:
         pass
-    
+
     # from eethercatmain.h
-    
+
     ctypedef struct ec_adaptert:
         char* name
         char* desc
         ec_adaptert* next
-        
+
     ctypedef struct ec_fmmut:
         uint32  LogStart
         uint16  LogLength
@@ -102,12 +102,12 @@ cdef extern from "ethercat.h":
         uint8   FMMUactive
         uint8   unused1
         uint16  unused2
-    
+
     ctypedef struct ec_smt:
         uint16  StartAddr
         uint16  SMlength
         uint32  SMflags
-    
+
     ctypedef struct ec_slavet:
         uint16           state
         uint16           ALstatuscode
@@ -174,7 +174,7 @@ cdef extern from "ethercat.h":
         int              (*PO2SOconfigx)(ecx_contextt* context, uint16 slave)
         void*            user
         char             *name #[EC_MAXNAME + 1]
-    
+
     ctypedef struct ec_groupt:
         uint32           logstartaddr
         uint32           Obytes
@@ -191,7 +191,7 @@ cdef extern from "ethercat.h":
         uint16           outputsWKC
         uint16           inputsWKC
         boolean          docheckstate
-        uint32           *IOsegment #[EC_MAXIOSEGMENTS]    
+        uint32           *IOsegment #[EC_MAXIOSEGMENTS]
 
     ctypedef struct ec_idxstackT:
         uint8   pushed
@@ -203,8 +203,8 @@ cdef extern from "ethercat.h":
     ctypedef struct ec_eringt:
         int16     head
         int16     tail
-        ec_errort *Error #[EC_MAXELIST + 1]        
-        
+        ec_errort *Error #[EC_MAXELIST + 1]
+
     ctypedef struct ec_SMcommtypet:
         uint8   n
         uint8   nu1
@@ -214,12 +214,12 @@ cdef extern from "ethercat.h":
         uint8   n
         uint8   nu1
         uint16  *index #[256]
-        
+
     ctypedef struct ec_PDOdesct:
         uint8   n
         uint8   nu1
         uint32  *PDO #[256]
-    
+
     ctypedef struct ec_eepromSMt:
         uint16  Startpos
         uint8   nSM
@@ -228,8 +228,8 @@ cdef extern from "ethercat.h":
         uint8   Creg
         uint8   Sreg
         uint8   Activate
-        uint8   PDIctrl     
-        
+        uint8   PDIctrl
+
     ctypedef struct ec_eepromFMMUt:
         uint16  Startpos
         uint8   nFMMU
@@ -237,7 +237,7 @@ cdef extern from "ethercat.h":
         uint8   FMMU1
         uint8   FMMU2
         uint8   FMMU3
-    
+
     ctypedef struct ecx_contextt:
         ecx_portt     *port
         ec_slavet      *slavelist
@@ -260,7 +260,7 @@ cdef extern from "ethercat.h":
         int            (*FOEhook)(uint16 slave, int packetnumber, int datasize)
         int            (*EOEhook)(ecx_contextt* context, uint16 slave, void* eoembx)
         int            manualstatechange
-        
+
     ctypedef struct ec_ODlistt:
         uint16  Slave
         uint16  Entries
@@ -269,7 +269,7 @@ cdef extern from "ethercat.h":
         uint8   *ObjectCode #[EC_MAXODLIST]
         uint8   *MaxSub #[EC_MAXODLIST]
         char    **Name #[EC_MAXODLIST][EC_MAXNAME+1]
-         
+
     ctypedef struct ec_OElistt:
         uint16 Entries
         uint8  *ValueInfo #[EC_MAXOELIST]
@@ -277,7 +277,7 @@ cdef extern from "ethercat.h":
         uint16 *BitLength #[EC_MAXOELIST]
         uint16 *ObjAccess #[EC_MAXOELIST]
         char   **Name #[EC_MAXOELIST][EC_MAXNAME+1]
-    
+
     int ecx_init(ecx_contextt* context, char* ifname)
     void ecx_close(ecx_contextt *context)
     int ecx_config_init(ecx_contextt *context, uint8 usetable)
@@ -285,31 +285,32 @@ cdef extern from "ethercat.h":
     int ecx_config_overlap_map_group(ecx_contextt *context, void *pIOmap, uint8 group)
     int ecx_SDOread(ecx_contextt *context, uint16 slave, uint16 index, uint8 subindex, boolean CA, int *psize, void *p, int timeout)
     int ecx_SDOwrite(ecx_contextt *context, uint16 slave, uint16 index, uint8 subindex, boolean CA, int psize, void *p, int Timeout)
+    int ecx_FPWR(ecx_portt *port, uint16 ADP, uint16 ADO, uint16 length, void *data, int timeout)
     int ecx_readODlist(ecx_contextt *context, uint16 Slave, ec_ODlistt *pODlist)
     int ecx_readODdescription(ecx_contextt *context, uint16 Item, ec_ODlistt *pODlist)
     int ecx_readOE(ecx_contextt *context, uint16 Item, ec_ODlistt *pODlist, ec_OElistt *pOElist)
-    
+
     int ecx_readstate(ecx_contextt *context)
     int ecx_writestate(ecx_contextt *context, uint16 slave)
     uint16 ecx_statecheck(ecx_contextt *context, uint16 slave, uint16 reqstate, int timeout)
-    
+
     int ecx_send_processdata(ecx_contextt *context)
     int ecx_send_overlap_processdata(ecx_contextt *context)
     int ecx_receive_processdata(ecx_contextt *context, int timeout)
-    
+
     int ecx_recover_slave(ecx_contextt *context, uint16 slave, int timeout)
     int ecx_reconfig_slave(ecx_contextt *context, uint16 slave, int timeout)
-    
+
     boolean ecx_poperror(ecx_contextt *context, ec_errort *Ec)
     const char* ec_sdoerror2string(uint32 sdoerrorcode)
     char* ec_mbxerror2string(uint16 errorcode)
-    
+
     boolean ecx_configdc(ecx_contextt *context)
     void ecx_dcsync0(ecx_contextt *context, uint16 slave, boolean act, uint32 CyclTime, int32 CyclShift)
     void ecx_dcsync01(ecx_contextt *context, uint16 slave, boolean act, uint32 CyclTime0, uint32 CyclTime1, int32 CyclShift)
-    
+
     char* ec_ALstatuscode2string(uint16 ALstatuscode)
-    
+
     uint32 ecx_readeeprom(ecx_contextt *context, uint16 slave, uint16 eeproma, int timeout)
     int ecx_writeeeprom(ecx_contextt *context, uint16 slave, uint16 eeproma, uint16 data, int timeout)
 

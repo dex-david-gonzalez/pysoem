@@ -69,10 +69,10 @@ cdef struct CdefMasterSettings:
 
 def find_adapters():
     """Create a list of available network adapters.
-    
+
     Returns:
         list[Adapter]: Each element of the list has a name an desc attribute.
-    
+
     """
     cdef cpysoem.ec_adaptert* _ec_adapter = cpysoem.ec_find_adapters()
     Adapter = collections.namedtuple('Adapter', ['name', 'desc'])
@@ -81,23 +81,23 @@ def find_adapters():
         adapters.append(Adapter(_ec_adapter.name.decode('utf8'), _ec_adapter.desc.decode('utf8')))
         _ec_adapter = _ec_adapter.next
     return adapters
-    
+
 def al_status_code_to_string(code):
     """Look up text string that belongs to AL status code.
-    
+
     Args:
         arg1 (uint16): AL status code as defined in EtherCAT protocol.
-    
+
     Returns:
         str: A verbal description of status code
-    
+
     """
     return cpysoem.ec_ALstatuscode2string(code).decode('utf8');
-    
-    
+
+
 class Master(CdefMaster):
     """Representing a logical EtherCAT master device.
-    
+
     For each network interface you can have a Master instance.
 
     Attributes:
@@ -106,11 +106,11 @@ class Master(CdefMaster):
         sdo_write_timeout: timeout for SDO write access for all slaves connected
     """
     pass
-    
-    
+
+
 cdef class CdefMaster:
     """Representing a logical EtherCAT master device.
-    
+
     Please do not use this class directly, but the class Master instead.
     Master is a typical Python object, with all it's benefits over
     cdef classes. For example you can add new attributes dynamically.
@@ -121,7 +121,7 @@ cdef class CdefMaster:
     DEF EC_MAXEEPBUF = EC_MAXEEPBITMAP * 32
     DEF EC_MAXMAPT = 8
     DEF EC_IOMAPSIZE = 4096
-    
+
     cdef cpysoem.ec_slavet        _ec_slave[EC_MAXSLAVE]
     cdef int                      _ec_slavecount
     cdef cpysoem.ec_groupt        _ec_group[EC_MAXGROUP]
@@ -144,7 +144,7 @@ cdef class CdefMaster:
     cdef CdefMasterSettings _settings
     cdef public int sdo_read_timeout
     cdef public int sdo_write_timeout
-    
+
     def __cinit__(self):
         self._ecx_contextt.port = &self._ecx_port
         self._ecx_contextt.slavelist = &self._ec_slave[0]
@@ -167,19 +167,19 @@ cdef class CdefMaster:
         self._ecx_contextt.eepFMMU = &self._ec_FMMU
         self._ecx_contextt.FOEhook = NULL
         self._ecx_contextt.manualstatechange = 0
-        
+
         self.slaves = []
         self.sdo_read_timeout = 700000
         self.sdo_write_timeout = 700000
         self._settings.sdo_read_timeout = &self.sdo_read_timeout
         self._settings.sdo_write_timeout = &self.sdo_write_timeout
-        
+
     def open(self, ifname):
         """Initialize and open network interface.
-        
+
         Args:
             ifname(str): Interface name. (see find_adapters)
-        
+
         Raises:
             ConnectionError: When the specified interface dose not exist or
                 you have no permission to open the interface
@@ -187,27 +187,27 @@ cdef class CdefMaster:
         ret_val = cpysoem.ecx_init(&self._ecx_contextt, ifname.encode('utf8'))
         if ret_val == 0:
             raise ConnectionError('could not open interface {}'.format(ifname))
-        
+
     def config_init(self, usetable=False):
         """Enumerate and init all slaves.
-        
+
         Args:
             usetable (bool): True when using configtable to init slaves, False otherwise
-        
+
         Returns:
             int: Working Counter of slave discover datagram = number of slaves found, -1 when no slave is connected
         """
         ret_val = cpysoem.ecx_config_init(&self._ecx_contextt, usetable)
         if ret_val > 0:
           # sanity check
-          assert(ret_val==self._ec_slavecount)        
+          assert(ret_val==self._ec_slavecount)
           for i in range(self._ec_slavecount):
               self.slaves.append(self._get_slave(i))
         return ret_val
-        
+
     def config_map(self):
         """Map all slaves PDOs in IO map.
-        
+
         Returns:
             int: IO map size (sum of all PDO in an out data)
         """
@@ -227,10 +227,10 @@ cdef class CdefMaster:
         if len(error_list) > 0:
             raise ConfigMapError(error_list)
         return ret_val
-        
+
     def config_overlap_map(self):
         """Map all slaves PDOs to overlapping IO map.
-        
+
         Returns:
             int: IO map size (sum of all PDO in an out data)
         """
@@ -272,58 +272,72 @@ cdef class CdefMaster:
             else:
                 error_list.append(Exception('unexpected error'))
         return error_list
-        
+
     def config_dc(self):
         """Locate DC slaves, measure propagation delays.
-        
+
         Returns:
             bool: if slaves are found with DC
         """
         return cpysoem.ecx_configdc(&self._ecx_contextt)
-        
+
+    def FPWR(self, address, uint8_t slave, bytes data, timeout):
+        """Write to a register
+
+        Args:
+            index (int): Address of the register to write to
+            Slave: slave index
+            data (bytes): data to be written to the object
+
+        Raises:
+            Not sure yet.
+        """
+        cdef int size = len(data)
+        cdef int result = cpysoem.ecx_FPWR(self._ecx_contextt.port, slave, address, size, <unsigned char*>data, timeout)
+
     def close(self):
         """Close the network interface.
-        
+
         """
         # ecx_close returns nothing
         cpysoem.ecx_close(&self._ecx_contextt)
-        
+
     def read_state(self):
         """Read all slaves states.
-        
+
         Returns:
             int: lowest state found
         """
         return cpysoem.ecx_readstate(&self._ecx_contextt)
-        
+
     def write_state(self):
         """Write all slaves state.
-        
+
         The function does not check if the actual state is changed.
-        
+
         Returns:
             int: Workint counter or EC_NOFRAME
         """
         return cpysoem.ecx_writestate(&self._ecx_contextt, 0)
-        
+
     def state_check(self, int expected_state, timeout=50000):
         """Check actual slave state.
-        
+
         This is a blocking function.
         To refresh the state of all slaves read_state() should be called
-        
+
         Args:
             expected_state (int): Requested state
             timeout (int): Timeout value in us
-        
+
         Returns:
             int: Requested state, or found state after timeout
         """
         return cpysoem.ecx_statecheck(&self._ecx_contextt, 0, expected_state, timeout)
-        
+
     def send_processdata(self):
         """Transmit processdata to slaves.
-        
+
         Uses LRW, or LRD/LWR if LRW is not allowed (blockLRW).
         Both the input and output processdata are transmitted.
         The outputs with the actual data, the inputs have a placeholder.
@@ -331,7 +345,7 @@ cdef class CdefMaster:
         In contrast to the base LRW function this function is non-blocking.
         If the processdata does not fit in one datagram, multiple are used.
         In order to recombine the slave response, a stack is used.
-        
+
         Returns:
             int: >0 if processdata is transmitted, might only by 0 if config map is not configured properly
         """
@@ -339,12 +353,12 @@ cdef class CdefMaster:
 
     def send_overlap_processdata(self):
         """Transmit overlap processdata to slaves.
-        
+
         Returns:
             int: >0 if processdata is transmitted, might only by 0 if config map is not configured properly
         """
         return cpysoem.ecx_send_overlap_processdata(&self._ecx_contextt)
-    
+
     def receive_processdata(self, timeout=2000):
         """Receive processdata from slaves.
 
@@ -358,7 +372,7 @@ cdef class CdefMaster:
             int: Working Counter
         """
         return cpysoem.ecx_receive_processdata(&self._ecx_contextt, timeout)
-        
+
     def _get_slave(self, int pos):
         if pos < 0:
             raise IndexError('requested slave device is not available')
@@ -369,7 +383,7 @@ cdef class CdefMaster:
         ethercat_slave._ec_slave = &self._ec_slave[pos+1] # +1 as _ec_slave[0] is reserved
         ethercat_slave._the_masters_settings = &self._settings
         return ethercat_slave
-        
+
     def _get_state(self):
         """Can be used to check if all slaves are in Operational state, or to request a new state for all slaves.
 
@@ -381,31 +395,31 @@ cdef class CdefMaster:
         self._ec_slave[0].state = value
 
     state = property(_get_state, _set_state)
-    
+
     def _get_expected_wkc(self):
         """Calculates the expected Working Counter"""
         return (self._ec_group[0].outputsWKC * 2) + self._ec_group[0].inputsWKC
-        
+
     expected_wkc  = property(_get_expected_wkc)
-    
+
     def _get_dc_time(self):
         """DC time in ns required to synchronize the EtherCAT cycle with SYNC0 cycles.
 
         Note EtherCAT cycle here means the call of send_processdata and receive_processdata."""
         return self._ec_DCtime
-        
+
     dc_time = property(_get_dc_time)
-        
-        
+
+
 class SdoError(Exception):
     """Sdo read or write abort
-    
+
     Attributes:
         slave_pos (int): position of the slave
         abort_code (int): specified sdo abort code
         desc (str): error description
     """
-    
+
     def __init__(self, slave_pos, index, subindex, abort_code, desc):
         self.slave_pos = slave_pos
         self.index = index
@@ -416,7 +430,7 @@ class SdoError(Exception):
 
 class SdoInfoError(Exception):
     """Errors during Object directory info read
-    
+
     Attributes:
         message (str): error message
     """
@@ -427,7 +441,7 @@ class SdoInfoError(Exception):
 
 class MailboxError(Exception):
     """Errors in mailbox communication
-    
+
     Attributes:
         slave_pos (int): position of the slave
         error_code (int): error code
@@ -441,8 +455,8 @@ class MailboxError(Exception):
 
 
 class PacketError(Exception):
-    """Errors related to mailbox communication 
-    
+    """Errors related to mailbox communication
+
     Attributes:
         slave_pos (int): position of the slave
         error_code (int): error code
@@ -455,20 +469,20 @@ class PacketError(Exception):
       1: 'Unexpected frame returned',
       3: 'Data container too small for type',
     }
-    
+
     def __init__(self, slave_pos, error_code):
         self.slave_pos = slave_pos
         self.error_code = error_code
-        
+
     def _get_desc(self):
         return self._code_desc[self.error_code]
-        
+
     desc = property(_get_desc)
 
 
 class ConfigMapError(Exception):
     """Errors during Object directory info read
-    
+
     Attributes:
         error_list (str): a list of exceptions of type MailboxError or SdoError
     """
@@ -479,41 +493,41 @@ class ConfigMapError(Exception):
 
 class EepromError(Exception):
     """EEPROM access error
-    
+
     Attributes:
         message (str): error message
     """
 
     def __init__(self, message):
         self.message = message
-    
+
 cdef class _CallbackData:
     cdef:
         object func
         object exc_raised
         object exc_info
-    
+
 cdef class CdefSlave:
     """Represents a slave device
 
     Do not use this class in application code. Instances are created
-    by a Master instance on a successful config_init(). They then can be 
+    by a Master instance on a successful config_init(). They then can be
     obtained by slaves list
 
     Attributes:
         pos(int): A integer specifying logical position in the network.
     """
-    
+
     EC_TIMEOUTRXM = 700000
     DEF STATIC_SDO_READ_BUFFER_SIZE = 256
-    
+
     cdef cpysoem.ecx_contextt* _ecx_contextt
     cdef cpysoem.ec_slavet* _ec_slave
     cdef CdefMasterSettings* _the_masters_settings
-    cdef _pos # keep in mind that first slave has pos 1  
+    cdef _pos # keep in mind that first slave has pos 1
     cdef public _CallbackData _cd
     cdef cpysoem.ec_ODlistt _ex_odlist
-    
+
     def __init__(self, pos):
         self._pos = pos
         self._cd = _CallbackData()
@@ -528,11 +542,11 @@ cdef class CdefSlave:
             sync1_cycle_time (int): Optional cycltime for SYNC1 in ns. This time is a delta time in relation to SYNC0.
                                     If CylcTime1 = 0 then SYNC1 fires a the same time as SYNC0.
         """
-    
+
         if sync1_cycle_time is None:
             cpysoem.ecx_dcsync0(self._ecx_contextt, self._pos, act, sync0_cycle_time, sync0_shift_time)
         else:
-            cpysoem.ecx_dcsync01(self._ecx_contextt, self._pos, act, sync0_cycle_time, sync1_cycle_time, sync0_shift_time) 
+            cpysoem.ecx_dcsync01(self._ecx_contextt, self._pos, act, sync0_cycle_time, sync1_cycle_time, sync0_shift_time)
 
     def sdo_read(self, index, uint8_t subindex, int size=0, ca=False):
         """Read a CoE object.
@@ -550,13 +564,13 @@ cdef class CdefSlave:
             bytes: The content of the sdo object.
 
         Raises:
-            SdoError: if write fails, the exception includes the SDO abort code  
+            SdoError: if write fails, the exception includes the SDO abort code
             MailboxError: on errors in the mailbox protocoll
             PacketError: on packet level error
         """
         if self._ecx_contextt == NULL:
             raise UnboundLocalError()
-        
+
         cdef unsigned char* pbuf
         cdef uint8_t std_buffer[STATIC_SDO_READ_BUFFER_SIZE]
         cdef int size_inout
@@ -566,10 +580,10 @@ cdef class CdefSlave:
         else:
             pbuf = <unsigned char*>PyMem_Malloc((size)*sizeof(unsigned char))
             size_inout = size
-        
+
         if pbuf == NULL:
             raise MemoryError()
-        
+
         cdef int result = cpysoem.ecx_SDOread(self._ecx_contextt, self._pos, index, subindex, ca,
                                               &size_inout, pbuf, self._the_masters_settings.sdo_read_timeout[0])
 
@@ -585,10 +599,10 @@ cdef class CdefSlave:
         finally:
             if pbuf != std_buffer:
                 PyMem_Free(pbuf)
-            
+
     def sdo_write(self, index, uint8_t subindex, bytes data, ca=False):
         """Write to a CoE object.
-        
+
         Args:
             index (int): Index of the object.
             subindex (int): Subindex of the object.
@@ -596,34 +610,34 @@ cdef class CdefSlave:
             ca (:obj:`bool`, optional): complete access
 
         Raises:
-            SdoError: if write fails, the exception includes the SDO abort code  
+            SdoError: if write fails, the exception includes the SDO abort code
             MailboxError: on errors in the mailbox protocoll
             PacketError: on packet level error
-        """          
+        """
         cdef int size = len(data)
         cdef int result = cpysoem.ecx_SDOwrite(self._ecx_contextt, self._pos, index, subindex, ca,
                                                size, <unsigned char*>data, self._the_masters_settings.sdo_write_timeout[0])
-        
+
         cdef cpysoem.ec_errort err
         if cpysoem.ecx_poperror(self._ecx_contextt, &err):
             self._raise_exception(&err)
-        
+
     def write_state(self):
         """Write slave state.
 
         Note: The function does not check if the actual state is changed.
         """
         return cpysoem.ecx_writestate(self._ecx_contextt, self._pos)
-        
+
     def state_check(self, int expected_state, timeout=2000):
         return cpysoem.ecx_statecheck(self._ecx_contextt, self._pos, expected_state, timeout)
-        
+
     def reconfig(self, timeout=500):
         return cpysoem.ecx_reconfig_slave(self._ecx_contextt, self._pos, timeout)
-        
+
     def recover(self, timeout=500):
         return cpysoem.ecx_recover_slave(self._ecx_contextt, self._pos, timeout)
-        
+
     def eeprom_read(self, int word_address, timeout=20000):
         """Read 4 byte from EEPROM
 
@@ -638,12 +652,12 @@ cdef class CdefSlave:
         """
         cdef uint32_t tmp = cpysoem.ecx_readeeprom(self._ecx_contextt, self._pos, word_address, timeout)
         return PyBytes_FromStringAndSize(<char*>&tmp, 4)
-        
+
     def eeprom_write(self, int word_address, bytes data, timeout=20000):
         """Write 2 byte (1 word) to EEPROM
 
         Default timeout: 20000 us
-        
+
         Args:
             word_address (int): EEPROM address to write to
             data (bytes): data (only 2 bytes are allowed)
@@ -676,7 +690,7 @@ cdef class CdefSlave:
 
         cdef int size = len(data)
         cdef int result = cpysoem.ecx_FOEwrite(self._ecx_contextt, self._pos, filename.encode('utf8'), password, size, <unsigned char*>data, timeout)
-        
+
         # error handling
         cdef cpysoem.ec_errort err
         if cpysoem.ecx_poperror(self._ecx_contextt, &err):
@@ -734,37 +748,37 @@ cdef class CdefSlave:
                               err.ErrorCode)
         else:
             raise Exception('unexpected error, Etype: {}'.format(err.Etype))
-    
+
     def _get_name(self):
         """Name of the slave, read out from the slaves SII during config_init."""
         return (<bytes>self._ec_slave.name).decode('utf8')
-        
+
     name = property(_get_name)
-    
+
     def _get_eep_man(self):
         """Vendor ID of the slave, read out from the slaves SII during config_init."""
         return self._ec_slave.eep_man
-        
+
     man = property(_get_eep_man)
-    
+
     def _get_eep_id(self):
         """Product Code of the slave, read out from the slaves SII during config_init."""
         return self._ec_slave.eep_id
-        
+
     id = property(_get_eep_id)
-    
+
     def _get_eep_rev(self):
         """Revision Number of the slave, read out from the slaves SII during config_init."""
         return self._ec_slave.eep_rev
-        
+
     rev = property(_get_eep_rev)
-        
+
     def _get_PO2SOconfig(self):
         """Slaves callback function that is called during config_init.
-        
+
         When the state changes from Pre-Operational state to Operational state."""
         return <object>self._ec_slave.user
-    
+
     def _set_PO2SOconfig(self, value):
         self._cd.func = value
         self._ec_slave.user = <void*>self._cd
@@ -772,7 +786,7 @@ cdef class CdefSlave:
             self._ec_slave.PO2SOconfig = NULL
         else:
             self._ec_slave.PO2SOconfig = _xPO2SOconfig
-        
+
     def _get_input(self):
         num_bytes = self._ec_slave.Ibytes
         if (self._ec_slave.Ibytes == 0 and self._ec_slave.Ibits > 0):
@@ -789,7 +803,7 @@ cdef class CdefSlave:
         self._ec_slave.state = value
 
     state = property(_get_state, _set_state)
-    
+
     def _get_output(self):
         num_bytes = self._ec_slave.Obytes
         if (self._ec_slave.Obytes == 0 and self._ec_slave.Obits > 0):
@@ -798,37 +812,37 @@ cdef class CdefSlave:
 
     def _set_output(self, bytes value):
         memcpy(<char*>self._ec_slave.outputs, <char*>value, len(value))
-        
+
     output = property(_get_output, _set_output)
-    
+
     def _get_al_status(self):
         return self._ec_slave.ALstatuscode
-       
+
     al_status = property(_get_al_status)
-    
+
     def _get_is_lost(self):
         return self._ec_slave.islost
 
     def _set_is_lost(self, value):
         self._ec_slave.islost = value
-    
+
     is_lost = property(_get_is_lost, _set_is_lost)
-    
+
     def _get_od(self):
         logger.debug('ecx_readODlist()')
         cdef int result = cpysoem.ecx_readODlist(self._ecx_contextt, self._pos, &self._ex_odlist)
         if not result > 0:
             raise SdoInfoError('Sdo List Info read failed')
-        
+
         coe_objects = []
         for i in range(self._ex_odlist.Entries):
             coe_object = CdefCoeObject(i)
             coe_object._ecx_context = self._ecx_contextt
             coe_object._ex_odlist = &self._ex_odlist
             coe_objects.append(coe_object)
-            
+
         return coe_objects
-        
+
     od = property(_get_od)
 
 
@@ -843,12 +857,12 @@ cdef class CdefCoeObject:
     cdef cpysoem.boolean _is_description_read
     cdef cpysoem.boolean _are_entries_read
     cdef cpysoem.ec_OElistt _ex_oelist
-    
+
     def __init__(self, int item):
         self._item = item
         self._is_description_read = False
         self._are_entries_read = False
-        
+
     def _read_description(self):
         cdef int result
         if not self._is_description_read:
@@ -857,7 +871,7 @@ cdef class CdefCoeObject:
           if not result > 0:
               raise SdoInfoError('Sdo Object Info read failed')
           self._is_description_read = True
-          
+
     def _read_entries(self):
         cdef int result
         if not self._are_entries_read:
@@ -866,34 +880,34 @@ cdef class CdefCoeObject:
             if not result > 0:
                 raise SdoInfoError('Sdo ObjectEntry Info read failed')
             self._are_entries_read = True
-            
+
     def _get_index(self):
         return self._ex_odlist.Index[self._item]
-        
+
     index = property(_get_index)
-    
+
     def _get_data_type(self):
         self._read_description()
         return self._ex_odlist.DataType[self._item]
-        
+
     data_type = property(_get_data_type)
-    
+
     def _get_object_code(self):
         self._read_description()
         return self._ex_odlist.ObjectCode[self._item]
-        
+
     object_code = property(_get_object_code)
-        
+
     def _get_name(self):
         self._read_description()
         return (<bytes>self._ex_odlist.Name[self._item]).decode('utf8')
-        
+
     name = property(_get_name)
-    
+
     def _get_entries(self):
         self._read_description()
         self._read_entries()
-        
+
         if self._ex_odlist.MaxSub[self._item] == 0:
             return []
         else:
@@ -905,7 +919,7 @@ cdef class CdefCoeObject:
             return entries
 
     entries = property(_get_entries)
-    
+
     def _get_bit_length(self):
         cdef int sum = 0
         self._read_description()
@@ -916,48 +930,48 @@ cdef class CdefCoeObject:
             for i in range(self._ex_odlist.MaxSub[self._item]+1):
                 sum += self._ex_oelist.BitLength[i]
             return sum
-            
+
     bit_length = property(_get_bit_length)
-    
+
     def _get_obj_access(self):
         if self._ex_odlist.MaxSub[self._item] == 0:
             return self._ex_oelist.ObjAccess[0]
         else:
             return 0
-    
+
     obj_access = property(_get_obj_access)
-        
+
 
 cdef class CdefCoeObjectEntry:
     cdef cpysoem.ec_OElistt* _ex_oelist
     cdef int _item
-    
+
     def __init__(self, int item):
         self._item = item
-        
-    def _get_name(self):            
+
+    def _get_name(self):
         return (<bytes>self._ex_oelist.Name[self._item]).decode('utf8')
-        
+
     name = property(_get_name)
 
     def _get_data_type(self):
         return self._ex_oelist.DataType[self._item]
-        
+
     data_type = property(_get_data_type)
-    
+
     def _get_bit_length(self):
         return self._ex_oelist.BitLength[self._item]
-    
+
     bit_length = property(_get_bit_length)
-    
+
     def _get_obj_access(self):
         return self._ex_oelist.ObjAccess[self._item]
-    
+
     obj_access = property(_get_obj_access)
-        
+
 
 cdef int _xPO2SOconfig(cpysoem.uint16 slave, void* user):
-    assert(slave>0)   
+    assert(slave>0)
     cdef _CallbackData cd
     cd = <object>user
     cd.exc_raised = False
